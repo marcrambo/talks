@@ -1,0 +1,2688 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>ni-media: An open source audi/o stream library</title>
+
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/black.css">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="lib/css/zenburn.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				<section>
+					<h1>ni-media</h1>
+					<h4>An open source audi/o stream library</h4>
+                    <p>Marc Boucek</p>
+                    <p>Native Instruments</p>
+					<p>
+						<small><a href="https://github.com/NativeInstruments/ni-media">https://github.com/NativeInstruments/ni-media</a></small>
+					</p>
+				</section>
+
+				<section>
+					<h3>Design goals</h3>
+					<ul>
+						<li class="fragment">Generic</li>
+                        <li class="fragment">Modern</li>                        
+						<li class="fragment">Performant</li>
+                        <li class="fragment">Modular</li>
+                        <li class="fragment">Extensible</li>
+                        <li class="fragment">Etc etc ... :)</li>                       
+					</ul>
+				</section>
+
+                <section data-transition="none">
+                </section>
+
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre class="fragment"><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = <mark>audio::ifstream("hello.wav")</mark>;
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(<mark>stream >> samples</mark>)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+
+				<section data-transition="fade">
+					<h2>The Boost Iostreams Library</h2>
+				</section>
+
+				<section>
+					<h3>Boost Iostreams Aims</h3>
+					<ul>
+						<li class="fragment">To make it easy to create standard C++ streams and stream buffers for accessing new Sources and Sinks</li>
+						<li class="fragment">To provide a framework for defining Filters and attaching them to standard streams and stream buffers.</li>
+						<li class="fragment">To provide a collection of ready-to-use Filters, Sources and Sinks.</li>
+					</ul>
+				</section>
+
+				<section>
+					<h3>Boost Iostreams Concepts</h3>
+					<ul>
+						<li class="fragment">Source: provides read access to a sequence of characters</li>
+						<li class="fragment">Sink: provides write access to a sequence of characters.</li>
+						<li class="fragment">InputFilter: filters input read from a Source.</li>
+						<li class="fragment">OutputFilter: filters output written to a Sink.</li>
+					</ul>
+				</section>
+
+				<section>
+					<h3>Boost Iostreams Concepts</h3>
+					<ul>
+						<li class="fragment">Sources, Sinks and their refinements are called Devices. </li>
+						<li class="fragment">InputFilters, OutputFilters and their refinements are called Filters</li>
+					</ul>
+				</section>
+
+                <section>
+                </section>
+                <section data-transition="none">
+                    <h3>Source Concept</h3>
+                        <pre><code class="cpp hljs">
+class source
+{
+public:
+    using char_type = char;
+    struct category : boost::iostreams::input
+                    , boost::iostreams::device_tag{};
+
+    std::streamsize read( char_type* s, std::streamsize n );
+
+}
+                        </code></pre>
+                </section>
+
+                <section data-transition="none">
+					<h3>Source Concept</h3>
+						<pre><code class="cpp hljs">
+class seekable_source
+{
+public:
+    using char_type = char;
+    struct category : boost::iostreams::input_seekable
+                    , boost::iostreams::device_tag{};
+
+    std::streamsize read( char_type* s, std::streamsize n );
+    std::streampos  seek( boost::iostreams::stream_offset off, BOOST_IOS::seekdir way );
+}
+						</code></pre>
+				</section>
+
+                <section data-transition="none">
+					<h3>Sink Concept</h3>
+						<pre><code class="cpp hljs">
+class sink
+{
+public:
+    using char_type = char;
+    struct category : boost::iostreams::output
+                    , boost::iostreams::device_tag{};
+
+    std::streamsize write( char_type* s, std::streamsize n );
+
+}
+						</code></pre>
+				</section>
+
+                <section data-transition="none">
+					<h3>Sink Concept</h3>
+						<pre><code class="cpp hljs">
+class seekable_sink
+{
+public:
+    using char_type = char;
+    struct category : boost::iostreams::output_seekable
+                    , boost::iostreams::device_tag{};
+
+    std::streamsize write( char_type* s, std::streamsize n );
+    std::streampos  seek( boost::iostreams::stream_offset off, BOOST_IOS::seekdir way );
+}
+						</code></pre>
+				</section>
+
+                <section data-transition="none">
+                    <h3>Creating A Container Source</h3>
+                        <pre><code class="cpp hljs">
+template &lt;class Container&gt;
+class container_source
+{
+public:
+    using char_type = typename Container::value_type;
+    struct category : boost::iostreams::input_seekable
+                    , boost::iostreams::device_tag{};
+
+    container_device( Container container )
+    : m_data( std::move( container ) )
+    {
+    }
+
+    std::streamsize read( char_type* s, std::streamsize n )
+    {
+        auto result = std::min( n, std::streamsize( m_data.size() - m_pos ) );
+        if ( result != 0 )
+        {
+            std::copy( m_data.begin() + m_pos, m_data.begin() + m_pos + result, s );
+            m_pos += result;
+            return result;
+        }
+        else
+        {
+            return -1; // EOF
+        }
+    }
+
+    std::streampos seek( boost::iostreams::stream_offset off, BOOST_IOS::seekdir way )
+    {
+        auto beg = std::streampos( 0 );
+        auto pos = std::streampos( m_pos );
+        auto end = std::streampos( m_data.size() );
+
+        m_pos = size_t( absolute_position( pos, beg, end, off, way ) );
+        return m_pos;
+    }
+
+private:
+    Container m_data;
+    size_t    m_pos = 0;
+};
+
+                        </code></pre>
+                </section>
+
+                <section data-transition="none">
+                    <h3>Creating A Container Sink</h3>
+                        <pre><code class="cpp hljs">
+template &lt;class Container&gt;
+class container_sink
+{
+public:
+    using char_type = typename Container::value_type;
+    struct category : boost::iostreams::output_seekable
+                    , boost::iostreams::device_tag{};
+
+    container_device( Container container )
+    : m_data( std::move( container ) )
+    {
+    }
+
+    std::streamsize write( const char_type* s, std::streamsize n )
+    {
+        std::streamsize result = 0;
+        if ( m_pos != m_data.size() )
+        {
+            result = std::min( n, std::streamsize( m_data.size() - m_pos ) );
+            std::copy( s, s + result, m_data.begin() + m_pos );
+            m_pos += result;
+        }
+        if ( result < n )
+        {
+            m_data.insert( m_data.end(), s, s + n );
+            m_pos = m_data.size();
+        }
+        return n;
+    }
+
+    std::streampos seek( boost::iostreams::stream_offset off, BOOST_IOS::seekdir way )
+    {
+        auto beg = std::streampos( 0 );
+        auto pos = std::streampos( m_pos );
+        auto end = std::streampos( m_data.size() );
+
+        m_pos = size_t( absolute_position( pos, beg, end, off, way ) );
+        return m_pos;
+    }
+
+private:
+    Container m_data;
+    size_t    m_pos = 0;
+};
+
+                        </code></pre>
+                </section>
+
+                <section data-transition="none">
+					<h3>Creating A Container Device</h3>
+						<pre><code class="cpp hljs">
+template &lt;class Container&gt;
+class container_device
+{
+public:
+    using char_type = typename Container::value_type;
+    using category  = boost::iostreams::seekable_device_tag;
+
+
+    container_device( Container container )
+    : m_data( std::move( container ) )
+    {
+    }
+
+    std::streamsize read( char_type* s, std::streamsize n )
+    {
+        auto result = std::min( n, std::streamsize( m_data.size() - m_pos ) );
+        if ( result != 0 )
+        {
+            std::copy( m_data.begin() + m_pos, m_data.begin() + m_pos + result, s );
+            m_pos += result;
+            return result;
+        }
+        else
+        {
+            return -1; // EOF
+        }
+    }
+
+    std::streamsize write( const char_type* s, std::streamsize n )
+    {
+        std::streamsize result = 0;
+        if ( m_pos != m_data.size() )
+        {
+            result = std::min( n, std::streamsize( m_data.size() - m_pos ) );
+            std::copy( s, s + result, m_data.begin() + m_pos );
+            m_pos += result;
+        }
+        if ( result < n )
+        {
+            m_data.insert( m_data.end(), s, s + n );
+            m_pos = m_data.size();
+        }
+        return n;
+    }
+
+    std::streampos seek( boost::iostreams::stream_offset off, BOOST_IOS::seekdir way )
+    {
+        auto beg = std::streampos( 0 );
+        auto pos = std::streampos( m_pos );
+        auto end = std::streampos( m_data.size() );
+
+        m_pos = size_t( absolute_position( pos, beg, end, off, way ) );
+        return m_pos;
+    }
+
+private:
+    Container m_data;
+    size_t    m_pos = 0;
+};
+
+						</code></pre>
+				</section>
+
+                <section data-transition="none">
+					<h3>Creating A Container Source</h3>
+						<pre><code class="cpp hljs">
+template &lt;class Container&gt;
+class container_source : private container_device&lt;Container&gt;
+{
+    using base_type = container_device&lt;Container&gt;;
+
+public:
+    using char_type = typename base_type::char_type;
+
+    struct category : boost::iostreams::input_seekable
+                    , boost::iostreams::device_tag{};
+
+    using base_type::base_type;
+    using base_type::read;
+    using base_type::seek;
+};
+						</code></pre>
+				</section>
+
+                <section data-transition="none">
+					<h3>Creating A Container Sink</h3>
+						<pre><code class="cpp hljs">
+template &lt;class Container&gt;
+class container_sink : private container_device&lt;Container&gt;
+{
+    using base_type = container_device&lt;Container&gt;;
+
+public:
+    using char_type = typename base_type::char_type;
+
+    struct category : boost::iostreams::output_seekable
+                    , boost::iostreams::device_tag{};
+
+    using base_type::base_type;
+    using base_type::write;
+    using base_type::seek;
+};
+						</code></pre>
+				</section>
+				<section>
+					<h2>NI Audiostream Library</h2>
+				</section>
+
+				<section>
+					<h3>Extending boost::iostreams concepts for audio</h3>
+					<ul>
+						<li class="fragment">Samplerate</li>
+						<li class="fragment">Number of channels</li>
+						<li span class="fragment">Channel layout? </span> <span class="fragment">Interleaved!</span> </li>
+						<li span class="fragment">Data format? </span> <span class="fragment">Pcm Format!</span> </li>
+					</ul>
+				</section>
+
+				<section>
+					<h3>Extending boost::iostreams concepts for audio</h3>
+					<ul>
+						<li class="fragment">Audio Source: provides read access to a sequence of interleaved audio pcm data</li>
+						<li class="fragment">Sink: provides write access to a sequence of interleaved audio pcm data.</li>
+						<li class="fragment">Audio Sources, Sinks and their refinements are called Audio Devices. </li>
+						<li class="fragment">Audio Devices must provide additional audio specific information.</li>
+					</ul>
+				</section>
+
+
+                <section data-transition="none">
+					<h3>Audio Source Concept</h3>
+						<pre><code class="cpp hljs">
+class audio_source
+{
+public:
+    using char_type = char;
+    struct category : boost::iostreams::input
+                    , boost::iostreams::device_tag{};
+
+    using info_type = audio::stream_info;
+
+    info_type info() const;
+
+    std::streamsize read( char_type* s, std::streamsize n );
+
+}
+						</code></pre>
+				</section>
+
+                <section data-transition="none">
+					<h3>Audio Source Concept</h3>
+						<pre><code class="cpp hljs">
+class seekable_audio_source
+{
+public:
+    using char_type = char;
+    struct category : boost::iostreams::input_seekable
+                    , boost::iostreams::device_tag{};
+
+    using info_type = audio::stream_info;
+
+    info_type info() const;
+
+    std::streamsize read( char_type* s, std::streamsize n );
+    std::streampos seek( boost::iostreams::stream_offset off, BOOST_IOS::seekdir way );
+}
+						</code></pre>
+				</section>
+
+                <section data-transition="none">
+					<h3>Audio Sink Concept</h3>
+						<pre><code class="cpp hljs">
+class audio_sink
+{
+public:
+    using char_type = char;
+    struct category : boost::iostreams::output
+                    , boost::iostreams::device_tag{};
+
+    using info_type = audio::stream_info;
+
+    audio_sink( info_type info );
+
+    std::streamsize write( char_type* s, std::streamsize n );
+
+}
+						</code></pre>
+				</section>
+
+                <section data-transition="none">
+					<h3>Audio Sink Concept</h3>
+						<pre><code class="cpp hljs">
+class seekable_audio_sink
+{
+public:
+    using char_type = char;
+    struct category : boost::iostreams::output_seekable
+                    , boost::iostreams::device_tag{};
+
+    using info_type = audio::stream_info;
+
+    audio_sink( info_type info );
+
+    std::streamsize write( char_type* s, std::streamsize n );
+    std::streampos seek( boost::iostreams::stream_offset off, BOOST_IOS::seekdir way );
+}
+						</code></pre>
+				</section>
+
+                <section data-transition="none">
+					<h3>Audio Container Source</h3>
+						<pre><code class="cpp hljs">
+template &lt;class Container, class Info&gt;
+class container_source : private boostext::iostreams::container_source&lt;Container&gt;
+{
+    using base_type = boostext::iostreams::container_source&lt;Container&gt;;
+
+public:
+    using base_type::char_type;
+    using base_type::category;
+    using info_type = Info;
+
+    container_source( Container container, const info_type& info );
+
+    info_type info() const { return m_info; }
+
+    using base_type::read;
+    using base_type::seek;
+
+private:
+    info_type m_info;
+};
+						</code></pre>
+				</section>
+
+                <section data-transition="none">
+					<h3>Audio Container Sink</h3>
+						<pre><code class="cpp hljs">
+template &lt;class Container, class Info&gt;
+class container_sink : private boostext::iostreams::container_sink&lt;Container&gt;
+{
+    using base_type = boostext::iostreams::container_sink&lt;Container&gt;;
+
+public:
+    using base_type::char_type;
+    using base_type::category;
+    using info_type = Info;
+
+    container_sink( Container container, const info_type& info );
+
+    info_type info() const { return m_info; }
+
+    using base_type::write;
+    using base_type::seek;
+
+private:
+    info_type m_info;
+};
+
+						</code></pre>
+				</section>
+
+				<section>
+					<h2>NI Audiostream Library</h2>
+					<h4>From Audio Devices to Audio Streams</h4>
+				</section>
+
+                <section>
+                    <h3>From Audio Source to audio::istream</h3>
+                        <pre><code class="cpp hljs">
+namespace audio
+{
+
+class istream_info
+{
+
+public:
+    virtual ~istream_info() = default;
+
+    using format_type = ::pcm::format;
+
+    void format( format_type format );
+    auto format() const -> format_type;
+
+    void   sample_rate( size_t val );
+    size_t sample_rate() const;
+
+    void   num_channels( size_t num_channels );
+    size_t num_channels() const;
+
+    size_t bits_per_sample() const;
+    size_t bytes_per_sample() const;
+    size_t bytes_per_frame() const;
+
+    friend bool operator==( const istream_info& lhs, const istream_info& rhs );
+    friend bool operator!=( const istream_info& lhs, const istream_info& rhs );
+
+private:
+    // Members
+    size_t      m_sample_rate  = 44100; //!< sample rate
+    size_t      m_num_channels = 1;     //!< number of channels
+    format_type m_format;               //!< pcm format
+};
+
+} // namespace audio
+                        </code></pre>
+                </section>
+
+				<section>
+					<h3>From Audio Source to audio::istream</h3>
+						<pre><code class="cpp hljs">
+namespace audio
+{
+
+class istream : protected std::istream
+{
+public:
+    istream();
+
+    template &lt;class AudioSource&gt;
+    istream( AudioSource source );
+
+    istream( const istream& ) = delete;
+    istream( istream&& );
+
+    istream& operator=( istream& ) = delete;
+    istream& operator              =( istream&& );
+
+    // - std::istream
+
+    using char_type   = std::istream::char_type;
+    using traits_type = std::istream::traits_type;
+    using int_type    = std::istream::int_type;
+    using pos_type    = std::istream::pos_type;
+    using off_type    = std::istream::off_type;
+
+    using std::istream::operator bool;
+    using std::istream::operator!;
+    using std::istream::bad;
+    using std::istream::clear;
+    using std::istream::eof;
+    using std::istream::fail;
+    using std::istream::good;
+    using std::istream::rdstate;
+    using std::istream::setstate;
+    using std::istream::rdbuf;
+
+    auto read( char_type* s, std::streamsize n ) -> istream&;
+
+    template &lt;class Value&gt;
+    auto operator>>( Value& val ) -> std::enable_if_t&lt;std::is_arithmetic&lt;Value&gt;::value, istream&&gt;;
+
+    template &lt;class Range>
+    auto operator>>( Range&& rng ) -> std::enable_if_t&lt;boost::has_range_iterator&lt;Range&gt;::value, istream&&gt;;
+
+    auto seekg( pos_type pos ) -> istream&;
+    auto sample_seekg( pos_type pos ) -> istream&;
+    auto frame_seekg( pos_type pos ) -> istream&;
+
+    auto seekg( off_type off, std::ios_base::seekdir dir ) -> istream&;
+    auto sample_seekg( off_type off, std::ios_base::seekdir dir ) -> istream&;
+    auto frame_seekg( off_type off, std::ios_base::seekdir dir ) -> istream&;
+
+    using std::istream::gcount;
+    auto sample_gcount() const -> std::streamsize;
+    auto frame_gcount() const -> std::streamsize;
+
+    using std::istream::tellg;
+    auto frame_tellg() -> pos_type;
+    auto sample_tellg() -> pos_type;
+
+    // - stream_info
+
+    using info_type = istream_info;
+
+    virtual auto info() const -> const info_type&;
+
+private:
+    std::unique_ptr&lt;info_type&gt; m_info;
+    std::unique_ptr&lt;streambuf&gt; m_streambuf;
+};
+
+} // audio
+
+						</code></pre>
+				</section>
+
+                <section>
+                    <h3>From AudioFile Source to audio::ifstream</h3>
+                        <pre><code class="cpp hljs">
+namespace audio
+{
+
+class ifstream_info : public istream_info
+{
+public:
+    enum class container_type {aiff, flac, mp3, mp4, ogg, wav, wma};
+
+    enum class codec_type {aac, alac, aiff, flac, mp3, vorbis, wav, wma};
+
+    void   num_frames( size_t num_frames );
+    size_t num_frames() const;
+
+    void codec( codec_type value );
+    auto codec() const -> codec_type;
+
+    void container( container_type value );
+    auto container() const -> container_type;
+
+    friend bool operator==( const ifstream_info& lhs, const ifstream_info& rhs );
+    friend bool operator!=( const ifstream_info& lhs, const ifstream_info& rhs );
+
+private:
+    size_t         m_num_frames = 0;
+    container_type m_container;
+    codec_type     m_codec;
+};
+
+} // namespace audio
+                        </code></pre>
+                </section>
+				<section>
+					<h3>From AudioFile Source to audio::ifstream</h3>
+						<pre><code class="cpp hljs">
+// ifstream.h
+
+namespace audio
+{
+
+class ifstream : public istream
+{
+public:
+    using info_type = ifstream_info;
+
+    ifstream() = default;
+    ifstream( const std::string& file );
+    ifstream( const std::string& file, info_type::container_type container, size_t stream_index = 0 );
+
+    ifstream( ifstream&& );
+    ifstream& operator=( ifstream&& );
+
+    const info_type& info() const override;
+};
+
+} // audio
+
+
+						</code></pre>
+				</section>
+
+
+				<section>
+					<h3>From AudioFile Source to audio::ifstream</h3>
+						<pre><code class="cpp hljs">
+// ifstream.cpp
+
+istream make_istream( const std::string& file
+                    , ifstream_info::container_type container, size_t stream_index = 0 )
+{
+    using container_type = ifstream_info::container_type;
+
+    if ( container != container_type::mp4 && stream_index != 0 )
+    {
+        throw std::runtime_error( "Unsupported stream index" );
+    }
+
+    switch ( container )
+    {
+
+#if NIMEDIA_ENABLE_AIFF_DECODING
+        case container_type::aiff:
+            return { aiff_file_source( file ) };
+#endif
+
+#if NIMEDIA_ENABLE_FLAC_DECODING
+        case container_type::flac:
+            return { flac_file_source( file ) };
+#endif
+
+#if NIMEDIA_ENABLE_MP3_DECODING
+        case container_type::mp3:
+            return { mp3_file_source( file ) };
+#endif
+
+#if NIMEDIA_ENABLE_MP4_DECODING
+        case container_type::mp4:
+            return { mp4_file_source( file, stream_index ) };
+#endif
+
+#if NIMEDIA_ENABLE_OGG_DECODING
+        case container_type::ogg:
+            return { ogg_file_source( file ) };
+#endif
+
+#if NIMEDIA_ENABLE_WAV_DECODING
+        case container_type::wav:
+            return { wav_file_source( file ) };
+#endif
+
+#if NIMEDIA_ENABLE_WMA_DECODING
+        case container_type::wma:
+            return { wma_file_source( file ) };
+#endif
+
+        default:
+            break;
+    }
+
+    throw std::runtime_error( "Unsupported container_type" );
+}
+
+
+istream make_istream( const std::string& file )
+{
+    if ( auto container = ifstream_container( file ) )
+        return make_istream( file, *container );
+
+    throw std::runtime_error( "Unsupported file extension" );
+}
+
+} // namespace
+
+
+//----------------------------------------------------------------
+
+ifstream::ifstream( const std::string& file )
+{
+    istream::operator=( make_istream( file ) );
+}
+
+} // audio
+						</code></pre>
+				</section>
+
+				<section>
+					<h2>Supported formats</h2>
+					<table>
+						<thead>
+							<tr>
+								<th>Format</th>
+								<th>Windows</th>
+								<th>Osx</th>
+								<th>Ios</th>	
+								<th>Linux  </th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr class="fragment">
+								<td>wav</td>
+								<td>native</td>
+								<td>native</td>
+								<td>native</td>
+								<td>native</td>								
+							</tr>
+                            <tr class="fragment">
+								<td>aiff</td>
+								<td>native</td>
+								<td>native</td>
+								<td>native</td>
+								<td>native</td>								
+							</tr>
+                            <tr class="fragment">
+								<td>flac</td>
+								<td>libFlac</td>
+								<td>libFlac</td>
+								<td>libFlac</td>
+								<td>libFlac</td>								
+							</tr>
+                            <tr class="fragment">
+								<td>ogg/vorbis</td>
+								<td>libVorbis</td>
+								<td>libVorbis</td>
+								<td>libVorbis</td>
+								<td>libVorbis</td>									
+							</tr>
+                            <tr class="fragment">
+								<td>mp3</td>
+								<td>WMF</td>
+								<td>CoreAudio</td>
+								<td>CoreAudio</td>
+								<td>No :(</td>								
+							</tr>
+                            <tr class="fragment">
+								<td>mp4</td>
+								<td>WMF</td>
+								<td>CoreAudio</td>
+								<td>CoreAudio</td>
+								<td>No :(</td>								
+							</tr>
+						</tbody>
+					</table>
+				</section>
+
+				<section>
+					<h2>Supported formats</h2>
+					<table>
+						<thead>
+							<tr>
+								<th>Format</th>
+								<th>CMake Option</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td>wav</td>
+								<td>NIMEDIA_ENABLE_WAV_DECODING</td>							
+							</tr>
+							<tr>
+								<td>aiff</td>
+								<td>NIMEDIA_ENABLE_AIFF_DECODING</td>							
+							</tr>
+							<tr>
+								<td>flac</td>
+								<td>NIMEDIA_ENABLE_FLAC_DECODING</td>							
+							</tr>
+							<tr>
+								<td>ogg/vorbis</td>
+								<td>NIMEDIA_ENABLE_OGG_DECODING</td>									
+							</tr>
+							<tr>
+								<td>mp3</td>
+								<td>NIMEDIA_ENABLE_MP3_DECODING</td>								
+							</tr>
+							<tr>
+								<td>mp4</td>
+								<td>NIMEDIA_ENABLE_MP4_DECODING</td>							
+							</tr>
+						</tbody>
+					</table>
+				</section>
+
+                <section data-transition="none">
+                    <h2 class="fragment">std stream for audio?</h2>
+                        <pre class="fragment"><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+				<section data-transition="none">
+					<h2>std stream for audio?</h2>
+						<pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = <mark>audio::ifstream("hello.wav")</mark>;
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+						</code></pre>
+				</section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = <mark>audio::ifstream("hello.aiff")</mark>;
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = <mark>audio::ifstream("hello.flac")</mark>;
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = <mark>audio::ifstream("hello.ogg")</mark>;
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = <mark>audio::ifstream("hello.mp3")</mark>;
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = <mark>audio::ifstream("hello.mp4")</mark>;
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+				<section data-transition="none">
+					<h2>std stream for audio?</h2>
+						<pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.mp4");
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+						</code></pre>
+				</section>
+				<section data-transition="none">
+					<h2>std stream for audio?</h2>
+						<pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.mp4");
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(<mark>stream >> samples</mark>)
+        process(samples);
+}
+						</code></pre>
+				</section>
+
+				<section>
+					<h2>Pcm library</h2>
+				</section>	
+
+
+				<section>
+					<h3>Pcm format description</h3>
+						<pre><code class="cpp hljs">
+namespace pcm
+{
+
+enum number_type : uint8_t
+{
+    signed_integer = 0,
+    unsigned_integer,
+    floating_point
+};
+
+enum bitwidth_type : uint8_t
+{
+    _8bit  = 8,
+    _16bit = 16,
+    _24bit = 24,
+    _32bit = 32,
+    _64bit = 64
+};
+
+enum endian_type : uint8_t
+{
+    big_endian = 0,
+    little_endian,
+#if defined( BOOST_BIG_ENDIAN )
+    native_endian = big_endian,
+#elif defined( BOOST_LITTLE_ENDIAN )
+    native_endian = little_endian,
+#else
+#error "unable to determine system endianness."
+#endif
+};
+
+} // pcm
+
+						</code></pre>
+				</section>
+                <section>
+                    <h3>Compiletime Pcm Format</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+namespace pcm
+{
+
+template &lt;number_type n = signed_integer, bitwidth_type b = _8bit, endian_type e = native_endian&gt;
+struct compiletime_format
+{
+    constexpr auto number() const { return n; }
+    constexpr auto bitwidth() const { return b; }
+    constexpr auto endian() const { return e; }
+};
+
+template &lt;number_type ln, bitwidth_type lb, endian_type le, number_type rn, bitwidth_type rb, endian_type re&gt;
+constexpr auto operator==( compiletime_format&lt;ln, lb, le&gt;, compiletime_format&lt;rn, rb, re&gt; )
+{
+    return std::is_same&lt;compiletime_format&lt;ln, lb, le&gt;, compiletime_format&lt;rn, rb, re&gt;&gt;::value;
+}
+
+template &lt;number_type ln, bitwidth_type lb, endian_type le, number_type rn, bitwidth_type rb, endian_type re&gt;
+constexpr auto operator!=( compiletime_format&lt;ln, lb, le&gt;, compiletime_format&lt;rn, rb, re&gt; )
+{
+    return !std::is_same&lt;compiletime_format&lt;ln, lb, le&gt;, compiletime_format&lt;rn, rb, re&gt;&gt;::value;
+}
+
+} // namespace pcm
+                        </code></pre>
+                </section>
+                <section>
+                    <h3>Runtime Pcm Format</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+namespace pcm
+{
+
+struct runtime_format
+{
+    runtime_format( const runtime_format& ) = default;
+
+    template &lt;class Format = compiletime_format&lt;&gt;, class = enable_if_supported&lt;Format&gt;&gt;
+    constexpr runtime_format( const Format& fmt = {} )
+    : m_number( fmt.number() )
+    , m_bitwidth( fmt.bitwidth() )
+    , m_endian( fmt.endian() )
+    , m_index( uint8_t( detail::tuple_find&lt;Format, decltype( compiletime_formats() )&gt;::value ) )
+    {
+    }
+
+    runtime_format( number_type n, bitwidth_type b, endian_type e = native_endian )
+    {
+        static auto const formats = detail::tuple_to_array&lt;runtime_format&gt;( compiletime_formats() );
+
+        auto it = boost::find_if( formats, [n, b, e]( const auto& fmt ) {
+            return fmt.number() == n && fmt.bitwidth() == b && fmt.endian() == e;
+        } );
+
+        if ( it == formats.end() )
+            throw std::runtime_error( "Invalid format" );
+
+        *this /*is*/ = *it;
+    }
+
+    auto number()   const { return m_number;   }
+    auto bitwidth() const { return m_bitwidth; }
+    auto endian()   const { return m_endian;   }
+    auto index()    const { return m_index;    }
+
+private:
+    number_type   m_number;
+    bitwidth_type m_bitwidth;
+    endian_type   m_endian;
+    uint8_t       m_index;
+};
+
+inline bool operator==( const runtime_format& lhs, const runtime_format& rhs )
+{
+    return lhs.index() == rhs.index();
+}
+
+inline bool operator!=( const runtime_format& lhs, const runtime_format& rhs )
+{
+    return lhs.index() != rhs.index();
+}
+
+} // namespace pcm
+                        </code></pre>
+                </section>
+                <section>
+                    <h3>Pcm Formats</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+namespace pcm
+{
+
+inline constexpr auto compiletime_formats()
+{
+    return std::tuple&lt;compiletime_format&lt;signed_integer, _8bit, big_endian&gt;,
+                      compiletime_format&lt;signed_integer, _8bit, little_endian&gt;,
+                      compiletime_format&lt;signed_integer, _16bit, big_endian&gt;,
+                      compiletime_format&lt;signed_integer, _16bit, little_endian&gt;,
+                      compiletime_format&lt;signed_integer, _24bit, big_endian&gt;,
+                      compiletime_format&lt;signed_integer, _24bit, little_endian&gt;,
+                      compiletime_format&lt;signed_integer, _32bit, big_endian&gt;,
+                      compiletime_format&lt;signed_integer, _32bit, little_endian&gt;,
+                      compiletime_format&lt;signed_integer, _64bit, big_endian&gt;,
+                      compiletime_format&lt;signed_integer, _64bit, little_endian&gt;,
+                      compiletime_format&lt;unsigned_integer, _8bit, big_endian&gt;,
+                      compiletime_format&lt;unsigned_integer, _8bit, little_endian&gt;,
+                      compiletime_format&lt;unsigned_integer, _16bit, big_endian&gt;,
+                      compiletime_format&lt;unsigned_integer, _16bit, little_endian&gt;,
+                      compiletime_format&lt;unsigned_integer, _24bit, big_endian&gt;,
+                      compiletime_format&lt;unsigned_integer, _24bit, little_endian&gt;,
+                      compiletime_format&lt;unsigned_integer, _32bit, big_endian&gt;,
+                      compiletime_format&lt;unsigned_integer, _32bit, little_endian&gt;,
+                      compiletime_format&lt;unsigned_integer, _64bit, big_endian&gt;,
+                      compiletime_format&lt;unsigned_integer, _64bit, little_endian&gt;,
+                      compiletime_format&lt;floating_point, _32bit, big_endian&gt;,
+                      compiletime_format&lt;floating_point, _32bit, little_endian&gt;,
+                      compiletime_format&lt;floating_point, _64bit, big_endian&gt;,
+                      compiletime_format&lt;floating_point, _64bit, little_endian&gt;&gt;();
+}
+
+inline auto runtime_formats()
+{
+    static auto const fs = detail::tuple_to_array&lt;runtime_format&gt;( compiletime_formats() );
+    return fs;
+}
+
+} // namespace pcm
+                        </code></pre>
+                    <ul>
+                        <p class="fragment">=> 24 formats</p>
+                        <p class="fragment">=> 576 conversions!</p>
+                    </ul>
+                </section>
+				<section>
+					<h3>Pcm data read</h3>
+						<pre><code class="cpp hljs" data-trim data-noescape>
+namespace pcm {
+
+namespace detail {
+                            
+template &lt;typename Value, typename Iterator, typename Format&gt;
+Value read_impl( Iterator iter )
+{
+    auto data = intermediate&lt;Format&gt;( iter );
+    return convert_to&lt;Value&gt;( data.value() );
+}
+
+template &lt;typename Value, typename Iterator, typename... Ts&gt;
+auto make_read_impls( const std::tuple&lt;Ts...&gt;& ) -&gt; std::array&lt;Value ( * )( Iterator ), sizeof...( Ts )&gt;
+{
+    return {{&read_impl&lt;Value, Iterator, Ts&gt;...}};
+}
+
+} // namespace detail
+
+template &lt;typename Value, typename Iterator, number_type n, bitwidth_type b, endian_type e&gt;
+Value read( Iterator iter, const compiletime_format&lt;n, b, e&gt;& )
+{
+    return detail::read_impl&lt;Value, Iterator, compiletime_format&lt;n, b, e&gt;&gt;( iter );
+}
+
+template &lt;typename Value, typename Iterator, typename... Ts&gt;
+Value read( Iterator iter, const runtime_format& fmt )
+{
+    static auto const impls = detail::make_read_impls&lt;Value, Iterator&gt;( std::tuple&lt;Ts...&gt;{} );
+    return impls.at( fmt.index() )( iter );
+}
+
+} // namespace pcm
+						</code></pre>
+				</section>
+				<section>
+					<h3>Pcm data write</h3>
+						<pre class"stretch"><code class="cpp hljs" data-trim data-noescape>
+
+namespace pcm {
+
+namespace detail {
+
+template &lt;typename Value, typename Iterator, typename Format&gt;
+void write_impl( Iterator iter, Value val )
+{
+    auto data = intermediate&lt;Format&gt;{convert_to&lt;typename intermediate&lt;Format&gt;::value_type&gt;( val )};
+    std::copy( data.begin(), data.end(), iter );
+}
+
+template &lt;typename Value, typename Iterator, typename... Ts&gt;
+auto make_write_impls( const std::tuple&lt;Ts...&gt;& ) -&gt; std::array&lt;void ( * )( Iterator, Value ), sizeof...( Ts )&gt;
+{
+    return {{&write_impl&lt;Value, Iterator, Ts&gt;...}};
+}
+
+} // namespace detail
+
+template &lt;typename Value, typename Iterator, number_type n, bitwidth_type b, endian_type e&gt;
+void write( Iterator iter, Value val, const compiletime_format&lt;n, b, e&gt;& )
+{
+    detail::write_impl&lt;Value, Iterator, compiletime_format&lt;n, b, e&gt;&gt;( iter, val );
+}
+
+template &lt;typename Value, typename Iterator, typename... Ts&gt;
+void write( Iterator iter, Value val, const runtime_format& fmt )
+{
+    static auto const impls = detail::make_write_impls&lt;Value, Iterator&gt;( std::tuple&lt;Ts...&gt;{} );
+    impls.at( fmt.index() )( iter, val );
+}
+
+} // namespace pcm
+						</code></pre>
+				</section>
+                <section>
+                    <h3>Pcm format conversions</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+// floating point &lt;- floating point
+// static_cast
+template &lt;typename Target, typename Source&gt;
+Target convert_to( Source src )
+{
+    return static_cast&lt;Target&gt;( src );
+}
+
+// fixed point &lt;- floating point
+// clamp, upscale, round_cast, sign_cast
+template &lt;typename Target, typename Source&gt;
+Target convert_to( Source src )
+{
+    using boost::algorithm::clamp;
+
+    using SignedTarget   = std::make_signed_t&lt;Target&gt;;
+    using PromotedSource = promote_t&lt;Source, sizeof( Target ) * 8&gt;;
+
+    static constexpr auto scale = PromotedSource{1ull &lt;&lt; ( sizeof( Target ) * 8 - 1 )};
+    static constexpr auto lo    = PromotedSource{-1};
+    static constexpr auto hi    = ( scale - PromotedSource{1} ) / scale;
+
+    return sign_cast&lt;Target&gt;( round_cast&lt;SignedTarget&gt;( scale * clamp( PromotedSource{src}, lo, hi ) ) );
+}
+
+// floating point &lt;- fixed point
+// sign_cast + downscale
+template &lt;typename Target, typename Source&gt;
+Target convert_to( Source src )
+{
+    using SignedSource   = std::make_signed_t&lt;Source&gt;;
+    using PromotedTarget = promote_t&lt;Target, sizeof( Source ) * 8&gt;;
+
+    static constexpr auto scale = PromotedTarget{1} / ( 1ull &lt;&lt; ( sizeof( Source ) * 8 - 1 ) );
+
+    return static_cast&lt;Target&gt;( scale * sign_cast&lt;SignedSource&gt;( src ) );
+}
+
+// fixed point &lt;- fixed point
+// sign_cast, shift_cast
+template &lt;typename Target, typename Source&gt;
+Target convert_to( Source src )
+{
+    using SignAdjustedSource = std::conditional_t&lt;std::is_signed&lt;Target>::value, //
+                                                  std::make_signed_t&lt;Source>,
+                                                  std::make_unsigned_t&lt;Source>>;
+
+    return shift_cast&lt;Target>( sign_cast&lt;SignAdjustedSource>( src ) );
+}
+                        </code></pre>
+                </section>
+
+                <section>
+                    <h3>Pcm iterator</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+template &lt;typename Value,
+          typename Iterator,
+          typename Format,
+          typename Category = typename std::iterator_traits&lt;Iterator&gt;::iterator_category&gt;
+class iterator : public boost::iterator_facade&lt;iterator&lt;Value, Iterator, Format, Category&gt;,
+                                               Value,
+                                               Category,
+                                               iterator_reference_t&lt;Value, Iterator, Format&gt;&gt;
+{
+
+public:
+
+    iterator() = default;
+
+    template &lt;class OtherIterator,
+              class OtherFormat,
+              class = std::enable_if_t&lt;std::is_convertible&lt;OtherIterator, Iterator&gt;::value
+                                       && std::is_convertible&lt;OtherFormat, Format&gt;::value&gt;&gt;
+    iterator( const iterator&lt;Value, OtherIterator, OtherFormat&gt;& other )
+    : m_proxy( other.m_proxy )
+    {
+    }
+
+    iterator( Iterator iter, const Format& fmt )
+    : m_proxy( fmt, iter )
+    {
+    }
+
+private:
+    void increment()
+    {
+        std::advance( m_proxy.iter, m_proxy.step() );
+    }
+
+    void decrement()
+    {
+        std::advance( m_proxy.iter, -m_proxy.step() );
+    }
+
+    void advance( difference_type offset )
+    {
+        std::advance( m_proxy.iter, offset * m_proxy.step() );
+    }
+
+    difference_type distance_to( const iterator& other ) const
+    {
+        return std::distance( m_proxy.iter, other.m_proxy.iter ) / m_proxy.step();
+    }
+
+    template &lt;class OtherIterator,
+              class OtherFormat,
+              class = std::enable_if_t&lt;std::is_convertible&lt;OtherIterator, Iterator&gt;::value
+                                       && std::is_convertible&lt;OtherFormat, Format&gt;::value&gt;&gt;
+    bool equal( const iterator&lt;Value, OtherIterator, OtherFormat&gt;& other ) const
+    {
+        return equal_format( m_proxy.format(), other.m_proxy.format() ) && m_proxy.iter == other.m_proxy.iter;
+    }
+
+    reference dereference() const
+    {
+        return m_proxy;
+    }
+
+    friend class ::boost::iterator_core_access;
+
+    proxy_t m_proxy;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template &lt;class Value, class Iterator, class Format&gt;
+struct proxy : Format
+{
+    proxy() = default;
+
+    proxy& operator=( Value val )
+    {
+        write( iter, val, format() );
+        return *this;
+    }
+
+    operator Value() const
+    {
+        return read&lt;Value&gt;( iter, format() );
+    }
+
+private:
+
+    template &lt;class OtherIterator,
+              class OtherFormat,
+              class = std::enable_if_t&lt;std::is_convertible&lt;OtherIterator, Iterator&gt;::value
+                                       && std::is_convertible&lt;OtherFormat, Format&gt;::value&gt;&gt;
+    proxy( const proxy&lt;Value, OtherIterator, OtherFormat&gt;& other )
+    : Format( other.format() )
+    , iter( other.iter )
+    {
+    }
+
+    proxy( const Format& fmt, Iterator it )
+    : Format( fmt )
+    , iter( it )
+    {
+    }
+
+    auto step() const -&gt; typename std::iterator_traits&lt;Iterator&gt;::difference_type
+    {
+        return format().bitwidth() / 8;
+    }
+
+    const Format& format() const
+    {
+        return static_cast&lt;const Format&&gt;( *this );
+    }
+
+    Iterator iter;
+};
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Pcm iterator usage</h3>
+                        <pre class="fragment"><code class="cpp hljs" data-trim data-noescape>
+{ // read pcm data
+    std::vector&lt;char&gt; in;
+    std::vector&lt;float&gt; out;
+
+    auto format = pcm::make_format&lt;pcm::signed_integer, pcm::_16bit, pcm::little_endian&gt;();
+
+    std::copy( pcm::make_iterator&lt;float&gt;( in.begin(), format ) 
+             , pcm::make_iterator&lt;float&gt;( in.end(), format )
+             , out.begin() );
+}
+
+{ // write pcm data
+    std::vector&lt;float&gt; in;
+    std::vector&lt;char&gt; out;
+
+    auto format = pcm::make_format&lt;pcm::signed_integer, pcm::_16bit, pcm::little_endian&gt;();
+
+    std::copy( in.begin()
+             , in.end()
+             , pcm::make_iterator&lt;float&gt;( out.begin(), format ) );
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Pcm iterator usage</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+{ // read pcm data
+    std::vector&lt;char&gt; in;
+    std::vector&lt;float&gt; out;
+
+    auto format = pcm::make_format(pcm::signed_integer, pcm::_16bit, pcm::little_endian);
+
+    std::copy( pcm::make_iterator&lt;float&gt;( in.begin(), format ) 
+             , pcm::make_iterator&lt;float&gt;( in.end(), format )
+             , out.begin() );
+}
+
+{ // write pcm data
+    std::vector&lt;float&gt; in;
+    std::vector&lt;char&gt; out;
+
+    auto format = pcm::make_format(pcm::signed_integer, pcm::_16bit, pcm::little_endian);
+
+    std::copy( in.begin()
+             , in.end()
+             , pcm::make_iterator&lt;float&gt;( out.begin(), format ) );
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Pcm range adaptor usage</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+{ // read pcm data
+    std::vector&lt;char&gt; in;
+    std::vector&lt;float&gt; out;
+
+    auto format = pcm::make_format&lt;pcm::signed_integer, pcm::_16bit, pcm::little_endian&gt;();
+
+    boost::copy( in | pcm::converted_to&lt;float&gt;( format )
+               , out.begin() );
+}
+
+{ // write pcm data
+    std::vector&lt;float&gt; in;
+    std::vector&lt;char&gt; out;
+
+    auto format = pcm::make_format&lt;pcm::signed_integer, pcm::_16bit, pcm::little_endian&gt;();
+
+    boost::copy( in
+               , std::begin( out | pcm::converted_to&lt;float&gt;( format ) ) );
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Pcm range adaptor usage</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+{ // read pcm data
+    std::vector&lt;char&gt; in;
+    std::vector&lt;float&gt; out;
+
+    auto format = pcm::make_format(pcm::signed_integer, pcm::_16bit, pcm::little_endian);
+
+    boost::copy( in | pcm::converted_to&lt;float&gt;( format )
+               , out.begin() );
+}
+
+{ // write pcm data
+    std::vector&lt;float&gt; in;
+    std::vector&lt;char&gt; out;
+
+    auto format = pcm::make_format(pcm::signed_integer, pcm::_16bit, pcm::little_endian);
+
+    boost::copy( in
+               , std::begin( out | pcm::converted_to&lt;float&gt;( format ) ) );
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Efficient pcm algorithms</h3>
+                        <pre class="fragment"><code class="cpp hljs" data-trim data-noescape>
+{ // read pcm data
+    std::vector&lt;char&gt; in;
+    std::vector&lt;float&gt; out;
+
+    auto format = pcm::make_format&lt;pcm::signed_integer, pcm::_16bit, pcm::little_endian&gt;();
+
+    std::copy( pcm::make_iterator&lt;float&gt;( in.begin(), format ) 
+             , pcm::make_iterator&lt;float&gt;( in.end(), format )
+             , out.begin() );
+}
+
+{ // write pcm data
+    std::vector&lt;float&gt; in;
+    std::vector&lt;char&gt; out;
+
+    auto format = pcm::make_format&lt;pcm::signed_integer, pcm::_16bit, pcm::little_endian&gt;();
+
+    std::copy( in.begin()
+             , in.end()
+             , pcm::make_iterator&lt;float&gt;( out.begin(), format ) );
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Efficient pcm algorithms</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+{ // read pcm data
+    std::vector&lt;char&gt; in;
+    std::vector&lt;float&gt; out;
+
+    auto format = pcm::make_format(pcm::signed_integer, pcm::_16bit, pcm::little_endian);
+
+    std::copy( pcm::make_iterator&lt;float&gt;( in.begin(), format ) 
+             , pcm::make_iterator&lt;float&gt;( in.end(), format )
+             , out.begin() );
+}
+
+{ // write pcm data
+    std::vector&lt;float&gt; in;
+    std::vector&lt;char&gt; out;
+
+    auto format = pcm::make_format(pcm::signed_integer, pcm::_16bit, pcm::little_endian);
+
+    std::copy( in.begin()
+             , in.end()
+             , pcm::make_iterator&lt;float&gt;( out.begin(), format ) );
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Efficient pcm algorithms</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+{ // read pcm data
+    std::vector&lt;char&gt; in;
+    std::vector&lt;float&gt; out;
+
+    auto format = pcm::make_format(pcm::signed_integer, pcm::_16bit, pcm::little_endian);
+
+    pcm::copy( pcm::make_iterator&lt;float&gt;( in.begin(), format ) 
+             , pcm::make_iterator&lt;float&gt;( in.end(), format )
+             , out.begin() );
+}
+
+{ // write pcm data
+    std::vector&lt;float&gt; in;
+    std::vector&lt;char&gt; out;
+
+    auto format = pcm::make_format(pcm::signed_integer, pcm::_16bit, pcm::little_endian);
+
+    pcm::copy( in.begin()
+             , in.end()
+             , pcm::make_iterator&lt;float&gt;( out.begin(), format ) );
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Efficient pcm algorithms</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+{ // read pcm data
+    std::vector&lt;char&gt; in;
+    std::vector&lt;float&gt; out;
+
+    auto format = pcm::make_format&lt;pcm::signed_integer, pcm::_16bit, pcm::little_endian&gt;();
+
+    pcm::copy( pcm::make_iterator&lt;float&gt;( in.begin(), format ) 
+             , pcm::make_iterator&lt;float&gt;( in.end(), format )
+             , out.begin() );
+}
+
+{ // write pcm data
+    std::vector&lt;float&gt; in;
+    std::vector&lt;char&gt; out;
+
+    auto format = pcm::make_format&lt;pcm::signed_integer, pcm::_16bit, pcm::little_endian&gt;();
+
+    pcm::copy( in.begin()
+             , in.end()
+             , pcm::make_iterator&lt;float&gt;( out.begin(), format ) );
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Efficient pcm algorithms</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+{ // read pcm data
+    std::vector&lt;char&gt; in;
+    std::vector&lt;float&gt; out;
+
+    auto format = pcm::make_format&lt;pcm::signed_integer, pcm::_16bit, pcm::little_endian&gt;();
+
+    boost::copy( in | pcm::converted_to&lt;float&gt;( format )
+               , out.begin() );
+}
+
+{ // write pcm data
+    std::vector&lt;float&gt; in;
+    std::vector&lt;char&gt; out;
+
+    auto format = pcm::make_format&lt;pcm::signed_integer, pcm::_16bit, pcm::little_endian&gt;();
+
+    boost::copy( in
+               , std::begin( out | pcm::converted_to&lt;float&gt;( format ) ) );
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Efficient pcm algorithms</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+{ // read pcm data
+    std::vector&lt;char&gt; in;
+    std::vector&lt;float&gt; out;
+
+    auto format = pcm::make_format(pcm::signed_integer, pcm::_16bit, pcm::little_endian);
+
+    boost::copy( in | pcm::converted_to&lt;float&gt;( format )
+               , out.begin() );
+}
+
+{ // write pcm data
+    std::vector&lt;float&gt; in;
+    std::vector&lt;char&gt; out;
+
+    auto format = pcm::make_format(pcm::signed_integer, pcm::_16bit, pcm::little_endian);
+
+    boost::copy( in
+               , std::begin( out | pcm::converted_to&lt;float&gt;( format ) ) );
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Efficient pcm algorithms</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+{ // read pcm data
+    std::vector&lt;char&gt; in;
+    std::vector&lt;float&gt; out;
+
+    auto format = pcm::make_format(pcm::signed_integer, pcm::_16bit, pcm::little_endian);
+
+    pcm::copy( in | pcm::converted_to&lt;float&gt;( format )
+             , out.begin() );
+}
+
+{ // write pcm data
+    std::vector&lt;float&gt; in;
+    std::vector&lt;char&gt; out;
+
+    auto format = pcm::make_format(pcm::signed_integer, pcm::_16bit, pcm::little_endian);
+
+    pcm::copy( in
+             , std::begin( out | pcm::converted_to&lt;float&gt;( format ) ) );
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Efficient pcm algorithms</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+{ // read pcm data
+    std::vector&lt;char&gt; in;
+    std::vector&lt;float&gt; out;
+
+    auto format = pcm::make_format&lt;pcm::signed_integer, pcm::_16bit, pcm::little_endian&gt;();
+
+    pcm::copy( in | pcm::converted_to&lt;float&gt;( format )
+             , out.begin() );
+}
+
+{ // write pcm data
+    std::vector&lt;float&gt; in;
+    std::vector&lt;char&gt; out;
+
+    auto format = pcm::make_format&lt;pcm::signed_integer, pcm::_16bit, pcm::little_endian&gt;();
+
+    pcm::copy( in
+             , std::begin( out | pcm::converted_to&lt;float&gt;( format ) ) );
+}
+                        </code></pre>
+                </section>
+                <section>
+                    <h3>Algorithm dispatching by Hand</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+namespace pcm
+{
+
+template &lt;class OutputIt, class Value, class Iterator&gt;
+auto copy( iterator&lt;Value,Iterator,runtime_format&gt; beg
+         , iterator&lt;Value,Iterator,runtime_format&gt; end
+         , OutputIt out )
+{
+    assert ( beg.format() == end.format() );
+
+    auto fmt = beg.format();
+
+    if ( fmt == compiletime_format&lt;signed_integer, _8bit, big_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;signed_integer, _8bit, big_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;signed_integer, _8bit, big_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _8bit, little_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;signed_integer, _8bit, little_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;signed_integer, _8bit, little_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _16bit, big_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;signed_integer, _16bit, big_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;signed_integer, _16bit, big_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _16bit, little_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;signed_integer, _16bit, little_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;signed_integer, _16bit, little_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _24bit, big_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;signed_integer, _24bit, big_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;signed_integer, _24bit, big_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _24bit, little_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;signed_integer, _24bit, little_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;signed_integer, _24bit, little_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _32bit, big_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;signed_integer, _32bit, big_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;signed_integer, _32bit, big_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _32bit, little_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;signed_integer, _32bit, little_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;signed_integer, _32bit, little_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _64bit, big_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;signed_integer, _64bit, big_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;signed_integer, _64bit, big_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _64bit, little_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;signed_integer, _64bit, little_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;signed_integer, _64bit, little_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _8bit, big_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;unsigned_integer, _8bit, big_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;unsigned_integer, _8bit, big_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _8bit, little_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;unsigned_integer, _8bit, little_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;unsigned_integer, _8bit, little_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _16bit, big_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;unsigned_integer, _16bit, big_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;unsigned_integer, _16bit, big_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _16bit, little_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;unsigned_integer, _16bit, little_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;unsigned_integer, _16bit, little_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _24bit, big_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;unsigned_integer, _24bit, big_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;unsigned_integer, _24bit, big_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _24bit, little_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;unsigned_integer, _24bit, little_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;unsigned_integer, _24bit, little_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _32bit, big_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;unsigned_integer, _32bit, big_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;unsigned_integer, _32bit, big_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _32bit, little_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;unsigned_integer, _32bit, little_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;unsigned_integer, _32bit, little_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _64bit, big_endian&gt;{} )
+        return std::copy( make_iterator&lt;Value&gt;( beg.base(), compiletime_format&lt;unsigned_integer, _64bit, big_endian&gt;{} )
+                        , make_iterator&lt;Value&gt;( end.base(), compiletime_format&lt;unsigned_integer, _64bit, big_endian&gt;{} )
+                        , out );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _64bit, little_endian&gt;{} )
+
+
+    .
+    .
+    .
+    
+}
+} // namespace pcm
+                        </code></pre>
+                </section>
+                <section>
+                    <h3>Algorithm dispatching by Hand</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+namespace pcm
+{
+
+template &lt;class InputIt, class Value, class Iterator&gt;
+auto copy( InputIt beg
+         , InputIt end
+         , iterator&lt;Value,Iterator, runtime_format&gt; out )
+{
+    auto out = beg.format();
+
+    if ( fmt == compiletime_format&lt;signed_integer, _8bit, big_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;signed_integer, _8bit, big_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _8bit, little_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;signed_integer, _8bit, little_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _16bit, big_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;signed_integer, _16bit, big_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _16bit, little_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;signed_integer, _16bit, little_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _24bit, big_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;signed_integer, _24bit, big_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _24bit, little_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;signed_integer, _24bit, little_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _32bit, big_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;signed_integer, _32bit, big_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _32bit, little_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;signed_integer, _32bit, little_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _64bit, big_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;signed_integer, _64bit, big_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;signed_integer, _64bit, little_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;signed_integer, _64bit, little_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _8bit, big_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;unsigned_integer, _8bit, big_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _8bit, little_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;unsigned_integer, _8bit, little_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _16bit, big_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;unsigned_integer, _16bit, big_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _16bit, little_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;unsigned_integer, _16bit, little_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _24bit, big_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;unsigned_integer, _24bit, big_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _24bit, little_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;unsigned_integer, _24bit, little_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _32bit, big_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;unsigned_integer, _32bit, big_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _32bit, little_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;unsigned_integer, _32bit, little_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _64bit, big_endian&gt;{} )
+        return std::copy( beg
+                        , end
+                        , make_iterator&lt;Value&gt;( out.base(), compiletime_format&lt;unsigned_integer, _64bit, big_endian&gt;{} ) );
+
+    else if ( fmt == compiletime_format&lt;unsigned_integer, _64bit, little_endian&gt;{} )
+
+
+    .
+    .
+    .
+    
+}
+} // namespace pcm
+                        </code></pre>
+                </section>
+                <section>
+                    <h3>Generic Algorithm dispatching</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+namespace pcm
+{
+namespace detail
+{
+
+struct copy_impl
+{
+    template &lt;class InputIt, class OutputIt&gt;
+    OutputIt operator()( InputIt beg, InputIt end, OutputIt out ) const
+    {
+        return std::copy( beg, end, out );
+    }
+};
+
+} // namespace detail
+
+// iterator based
+template &lt;class InputIt, class OutputIt&gt;
+auto copy( InputIt beg, InputIt end, OutputIt out )
+{
+    return dispatch( detail::copy_impl{}, beg, end, out );
+}
+
+// range based
+template &lt;class InputRange, class OutputIt&gt;
+auto copy( const InputRange& range, OutputIt out )
+{
+    return ::pcm::copy( std::begin( range ), std::end( range ), out );
+}
+
+} // namespace pcm
+                        </code></pre>
+                </section>
+                <section>
+                    <h3>Generic Algorithm dispatching</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+namespace pcm
+{
+namespace detail
+{
+
+struct copy_n_impl
+{
+    template &lt;class InputIt, class Size, class OutputIt&gt;
+    OutputIt operator()( InputIt first, Size count, OutputIt result ) const
+    {
+        return std::copy_n( first, count, result );
+    }
+};
+
+} // namespace detail
+
+template &lt;class InputIt, class Size, class OutputIt&gt;
+OutputIt copy_n( InputIt first, Size count, OutputIt result )
+{
+    return dispatch( detail::copy_n_impl{}, first, count, result );
+}
+
+} // namespace pcm
+                        </code></pre>
+                </section>
+                <section>
+                    <h3>Generic Algorithm dispatching</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+namespace pcm { namespace detail {
+
+struct catch_t{};
+struct try_t : catch_t{};
+
+template &lt;class Result, class F&gt;
+auto invoke( try_t, F f, Ts... ts ) -&gt; decltype( f( ts... ), Result() )
+{
+    return f( ts... );
+}
+
+template &lt;class Result, class F&gt;
+Result invoke( catch_t, F, Ts... )
+{
+    throw std::runtime_error( "runtime argument mismatch" );
+}
+
+template &lt;class...&gt;
+struct dispatch_impl{};
+
+// Base case
+template &lt;class R, class F, class... Bs, class... Fs&gt;
+struct dispatch_impl&lt;R, F, std::tuple&lt;&gt;, std::tuple&lt;Bs...&gt;, std::tuple&lt;Fs...&gt;&gt;
+{
+    auto operator()( F f, Bs... bs )
+    {
+        return invoke&lt;R&gt;( try_t{}, f, bs... );
+    }
+};
+
+// Recursive case without dispatch
+template &lt;class R, class F, class A, class... As, class... Bs, class... Fs&gt;
+struct dispatch_impl&lt;R, F, std::tuple&lt;A, As...&gt;, std::tuple&lt;Bs...&gt;, std::tuple&lt;Fs...&gt;&gt;
+{
+    auto operator()( F f, A a, As... as, Bs... bs )
+    {
+        auto impl = dispatch_impl&lt;R, F, std::tuple&lt;As...&gt;, std::tuple&lt;Bs..., A&gt;, std::tuple&lt;Fs...&gt;&gt;();
+        return impl( f, as..., bs..., a );
+    }
+};
+
+// Recursive case, with dispatch, with return type
+template &lt;class R, class F, class V, class I, class... As, class... Bs, class... Fs&gt;
+struct dispatch_impl&lt;R, F, std::tuple&lt;iterator&lt;V, I&gt;, As...&gt;, std::tuple&lt;Bs...&gt;, std::tuple&lt;Fs...&gt;&gt;
+{
+    auto operator()( F f, iterator&lt;V, I&gt; it, As... as, Bs... bs )
+    {
+        R r;
+        []( ... ) {}( it.format() == Fs{}
+                      && ( r = ( dispatch_impl&lt;R,
+                                               F,
+                                               std::tuple&lt;As...&gt;,
+                                               std::tuple&lt;Bs..., iterator&lt;V, I, Fs&gt;&gt;,
+                                               std::tuple&lt;Fs...&gt;&gt;()(
+                               f, as..., bs..., make_iterator&lt;V&gt;( it.base(), Fs{} ) ) ),
+                           false )... );
+        return r;
+    }
+};
+
+// Recursive case, with dispatch, without return type
+template &lt;class F, class V, class I, class... As, class... Bs, class... Fs&gt;
+struct dispatch_impl&lt;void, F, std::tuple&lt;iterator&lt;V, I&gt;, As...&gt;, std::tuple&lt;Bs...&gt;, std::tuple&lt;Fs...&gt;&gt;
+{
+    auto operator()( F f, iterator&lt;V, I&gt; it, As... as, Bs... bs )
+    {
+        []( ... ) {}( it.format() == Fs{}
+                      && ( dispatch_impl&lt;void,
+                                         F,
+                                         std::tuple&lt;As...&gt;,
+                                         std::tuple&lt;Bs..., iterator&lt;V, I, Fs&gt;&gt;,
+                                         std::tuple&lt;Fs...&gt;&gt;()(
+                               f, as..., bs..., make_iterator&lt;V&gt;( it.base(), Fs{} ) ),
+                           false )... );
+    }
+};
+
+} // namespace detail
+
+template &lt;class F, class... Ts&gt;
+auto dispatch( F f, Ts... ts )
+{
+    using Result  = decltype( f( ts... ) );
+    using Formats = decltype( compiletime_formats() );
+    auto impl     = detail::dispatch_impl&lt;Result, F, std::tuple&lt;Ts...&gt;, std::tuple&lt;&gt;, Formats&gt;();
+    return impl( f, ts... );
+}
+
+} // namespace pcm
+                        </code></pre>
+                </section>
+
+                <section>
+<canvas data-chart="line" data-chart-src="data/copy_from_s16le_to_float.csv">
+<!-- 
+{
+    "data" : {
+    "datasets" : []
+    },
+    "options": {
+        "responsive": true,
+        "scales": { "xAxes": [{ "stacked": false }], "yAxes": [{ "stacked": false }] },
+        "title": {
+          "display": true,
+          "text": "Pcm Algorithm Benchmarks"
+        }
+    }
+}
+-->
+</canvas>
+                </section>
+
+                <section>
+                </section>
+
+                <section data-transition="none">
+                    <h3>Usage in audio::istream</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+template &lt;class Range&gt;
+auto istream::operator&gt;&gt;( Range&& rng ) -&gt; std::enable_if_t&lt;boost::has_range_iterator&lt;Range&gt;::value, istream&&gt;
+{
+    using Value      = typename boost::range_value&lt;Range&gt;::type;
+    using Difference = typename boost::range_difference&lt;Range&gt;::type;
+
+    auto beg = std::begin( rng );
+    auto end = std::end( rng );
+
+    const auto samples_requested = std::distance( beg, end );
+    const auto samples_available = Difference( m_info-&gt;num_samples() - sample_tellg() );
+
+    auto iter = pcm::make_iterator&lt;Value&gt;( std::istreambuf_iterator&lt;char&gt;( rdbuf() ), m_info-&gt;format() );
+    std::fill( pcm::copy_n( iter, std::min( samples_requested, samples_available ), beg ), end, Value{} );
+
+    if ( samples_available &lt; samples_requested )
+        setstate( rdstate() | eofbit );
+
+    return *this;
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Usage in audio::istream</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+template &lt;class Range&gt;
+auto istream::operator&gt;&gt;( Range&& rng ) -&gt; std::enable_if_t&lt;boost::has_range_iterator&lt;Range&gt;::value, istream&&gt;
+{
+    using Value      = typename boost::range_value&lt;Range&gt;::type;
+    using Difference = typename boost::range_difference&lt;Range&gt;::type;
+
+    auto beg = std::begin( rng );
+    auto end = std::end( rng );
+
+    const auto samples_requested = std::distance( beg, end );
+    const auto samples_available = Difference( m_info-&gt;num_samples() - sample_tellg() );
+
+    auto iter = <mark>pcm::make_iterator&lt;Value&gt;</mark>( std::istreambuf_iterator&lt;char&gt;( rdbuf() ), m_info-&gt;format() );
+    std::fill( pcm::copy_n( iter, std::min( samples_requested, samples_available ), beg ), end, Value{} );
+
+    if ( samples_available &lt; samples_requested )
+        setstate( rdstate() | eofbit );
+
+    return *this;
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Usage in audio::istream</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+template &lt;class Range&gt;
+auto istream::operator&gt;&gt;( Range&& rng ) -&gt; std::enable_if_t&lt;boost::has_range_iterator&lt;Range&gt;::value, istream&&gt;
+{
+    using Value      = typename boost::range_value&lt;Range&gt;::type;
+    using Difference = typename boost::range_difference&lt;Range&gt;::type;
+
+    auto beg = std::begin( rng );
+    auto end = std::end( rng );
+
+    const auto samples_requested = std::distance( beg, end );
+    const auto samples_available = Difference( m_info-&gt;num_samples() - sample_tellg() );
+
+    auto iter = pcm::make_iterator&lt;Value&gt;( <mark>std::istreambuf_iterator&lt;char&gt;( rdbuf() )</mark>, m_info-&gt;format() );
+    std::fill( pcm::copy_n( iter, std::min( samples_requested, samples_available ), beg ), end, Value{} );
+
+    if ( samples_available &lt; samples_requested )
+        setstate( rdstate() | eofbit );
+
+    return *this;
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h3>Usage in audio::istream</h3>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+template &lt;class Range&gt;
+auto istream::operator&gt;&gt;( Range&& rng ) -&gt; std::enable_if_t&lt;boost::has_range_iterator&lt;Range&gt;::value, istream&&gt;
+{
+    using Value      = typename boost::range_value&lt;Range&gt;::type;
+    using Difference = typename boost::range_difference&lt;Range&gt;::type;
+
+    auto beg = std::begin( rng );
+    auto end = std::end( rng );
+
+    const auto samples_requested = std::distance( beg, end );
+    const auto samples_available = Difference( m_info-&gt;num_samples() - sample_tellg() );
+
+    auto iter = pcm::make_iterator&lt;Value&gt;( std::istreambuf_iterator&lt;char&gt;( rdbuf() ), m_info-&gt;format() );
+    std::fill( <mark>pcm::copy_n( iter, std::min( samples_requested, samples_available ), beg )</mark>, end, Value{} );
+
+    if ( samples_available &lt; samples_requested )
+        setstate( rdstate() | eofbit );
+
+    return *this;
+}
+                        </code></pre>
+                </section>
+
+
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre class="fragment"><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = <mark>audio::ifstream("hello.wav")</mark>;
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = <mark>audio::ifstream("hello.aiff")</mark>;
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = <mark>audio::ifstream("hello.flac")</mark>;
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = <mark>audio::ifstream("hello.ogg")</mark>;
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = <mark>audio::ifstream("hello.mp3")</mark>;
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = <mark>audio::ifstream("hello.mp4")</mark>;
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(stream >> samples)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::vector&lt;float&gt;(1024 * stream.info().num_channels());
+    while(<mark>stream >> samples</mark>)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::vector&lt;double&gt;(1024 * stream.info().num_channels());
+    while(<mark>stream >> samples</mark>)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::vector&lt;int8_t&gt;(1024 * stream.info().num_channels());
+    while(<mark>stream >> samples</mark>)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::vector&lt;uint8_t&gt;(1024 * stream.info().num_channels());
+    while(<mark>stream >> samples</mark>)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::vector&lt;int16_t&gt;(1024 * stream.info().num_channels());
+    while(<mark>stream >> samples</mark>)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::vector&lt;uint16_t&gt;(1024 * stream.info().num_channels());
+    while(<mark>stream >> samples</mark>)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::vector&lt;int32_t&gt;(1024 * stream.info().num_channels());
+    while(<mark>stream >> samples</mark>)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::vector&lt;uint32_t&gt;(1024 * stream.info().num_channels());
+    while(<mark>stream >> samples</mark>)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::vector&lt;uint32_t&gt;(256 * stream.info().num_channels());
+    while(<mark>stream >> samples</mark>)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::vector&lt;uint32_t&gt;(42 * stream.info().num_channels());
+    while(<mark>stream >> samples</mark>)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = std::list&lt;uint32_t&gt;(42 * stream.info().num_channels());
+    while(<mark>stream >> samples</mark>)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                        <pre><code class="cpp hljs" data-trim data-noescape>
+#include &lt;ni/media/audio/ifstream.h&gt;
+#include &lt;vector&gt;
+
+int main()
+{
+    auto stream = audio::ifstream("hello.wav");
+    auto samples = my::array&lt;uint32_t&gt;(42 * stream.info().num_channels());
+    while(<mark>stream >> samples</mark>)
+        process(samples);
+}
+                        </code></pre>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio?</h2>
+                </section>
+                <section data-transition="none">
+                    <h2>std stream for audio!</h2>
+                </section>
+                <section>
+                    <h3>Contributors!</h3>
+                    <ul>
+                        <li class="fragment">Nathan Kozlowski</li>
+                        <li class="fragment">Moritz Heppner</li>
+                        <li class="fragment">Matthew Goldsmith</li>
+                        <li class="fragment">Kevin Dixon</li>
+                        <li class="fragment">Peter Vasil</li>
+                        <li class="fragment">Andrea Savio</li>                       
+                        <li class="fragment">David Terry</li>                                         
+                        <li class="fragment">Eike Verdenhalven</li>                    
+                    </ul>
+                </section>
+                <section>
+                    <h3>Special Thanks!</h3>
+                    <ul>
+                        <li>André Bergner</li>
+                        <li>Tobias Baumbach</li>              
+                    </ul>
+                </section>
+                <section>
+                    <p>
+                        <small><a href="https://github.com/NativeInstruments/ni-media">https://github.com/NativeInstruments/ni-media</a></small>
+                    </p>
+                </section>
+
+			</div>
+		</div>
+
+		<script src="lib/js/head.min.js"></script>
+		<script src="js/reveal.js"></script>
+
+		<script>
+			// More info about config & dependencies:
+			// - https://github.com/hakimel/reveal.js#configuration
+			// - https://github.com/hakimel/reveal.js#dependencies
+			Reveal.initialize({
+				controls: true,
+				progress: true,
+				history: true,
+				center: true,
+
+				transition: 'slide', // none/fade/slide/convex/concave/zoom
+
+
+				// More info https://github.com/hakimel/reveal.js#dependencies
+				dependencies: [
+					{ src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+					{ src: 'plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+					{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+					{ src: 'plugin/search/search.js', async: true },
+					{ src: 'plugin/zoom-js/zoom.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true },
+                    { src: 'plugin/chart/Chart.min.js' , async: true},               
+                    { src: 'plugin/chart/csv2chart.js' , async: true}
+				],
+
+                chart: {
+                    defaults: { 
+                        global: { 
+                            title: { fontColor: "#FFF" }, 
+                            legend: {
+                                labels: { fontColor: "#FFF" },
+                            },
+                        },
+                        scale: { 
+                            scaleLabel: { fontColor: "#FFF" }, 
+                            gridLines: { display: false }, 
+                            ticks: { fontColor: "#FFF" }, 
+                        } 
+                    },
+                    line: { borderColor: [ "rgba(20,220,220,.8)" , "rgba(220,120,120,.8)", "rgba(20,120,220,.8)", "rgba(120,220,20,.8)" ]}, 
+                },
+			});
+		</script>
+	</body>
+</html>
